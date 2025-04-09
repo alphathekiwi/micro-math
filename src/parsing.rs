@@ -93,6 +93,123 @@ impl Calc {
     }
 }
 
+
+//     [x+y]
+//  [4+[   ]*5]
+// [[         ]/5]
+
+// 5*(6/(7+5))
+// 5 6 7 5 + / *
+
+
+
+
+/// ```
+/// use micro_math::parsing::MicroEquation;
+/// 
+/// 
+/// ```
+#[repr(Rust, packed)]
+union Slot {
+    float: f32,
+    ptr: u32,
+}
+
+// #[repr(C, packed)]
+#[repr(u32)]
+enum MicroEqValue<'a> {
+    Float(f32)                = 3,
+    Var(u8)                   = 2,
+    Nested(&'a MicroEquation) = 0,
+}
+// #[repr(Rust, packed)]
+/// |float/var/nest; 2|movable; 1|var; 5|
+/// float=3,var=2,nest=0
+#[allow(unused)]
+pub struct MicroEquation {
+    left: u32,
+    right: u32,
+    left_flags: u8,
+    right_flags: u8,
+    operation: Token,
+}
+#[allow(unused)]
+impl MicroEquation {
+    fn new(operation: Token) -> Self {
+        MicroEquation { left: 0, right: 0, operation , left_flags: 0, right_flags: 0 }
+    }
+    fn set_right_as_float(&mut self, right: f32) {
+        self.left_flags = 0xE0;
+        self.right = right as u32;
+    }
+    fn set_right_as_nested(&mut self, var: &MicroEquation) {
+        if var.is_all_movable() {
+            self.left_flags = 0x20; 
+        } else { self.left_flags = 0; }
+
+        self.left = var as *const MicroEquation as usize as u32;
+    }
+    fn set_right_as_var(&mut self, var: u8) {
+        self.left_flags = var & 0x1f;
+    }
+    fn solution(&self) -> f32 {
+        // let left = if self.left_flags
+        0.0
+    }
+
+    /// Determines if this part of the equation can be moved
+    /// For modulo it can only move if both L&R are numbers
+    fn is_all_movable(&self) -> bool {
+        if matches!(self.operation, Token::Mod) {
+            (self.left_flags & self.right_flags & 0xC0) == 0xC0
+        } else {
+            (self.left_flags & self.right_flags & 0x20) == 0x20
+        }
+    }
+    fn right_moves(&self) -> bool {
+        (self.right_flags & 64) == 64
+    }
+    fn left_moves(&self) -> bool {
+        (self.left_flags & 64) == 64
+    }
+}
+
+// impl<const B: usize, const L: usize> MicroEquation<B, L> {
+//     const ELEM: MaybeUninit<Calc> = MaybeUninit::uninit();
+//     const BRANCH: [MaybeUninit<Calc>; B] = [Self::ELEM; B]; // important for optimization of `new`
+//     const LEAF: [MaybeUninit<Calc>; L] = [Self::ELEM; L]; // important for optimization of `new`
+
+//     /// Constructs a new, empty vector with a fixed capacity of `N`
+//     ///
+//     /// # Examples
+//     ///
+//     /// ```
+//     /// use micro_math::parsing::MicroEquation;
+//     ///
+//     /// // allocate the vector on the stack
+//     /// let mut x: MicroEquation<4, 4> = MicroEquation::new();
+//     ///
+//     /// // allocate the MicroEquationtor in a static variable
+//     /// static mut X: MicroEquation<4, 4> = MicroEquation::new();
+//     /// ```
+//     /// `Vec` `const` constructor; wrap the returned value in [`Vec`].
+//     pub const fn new() -> Self {
+//         Self {
+//             len: 0,
+//             branches: Self::BRANCH,
+//             leaves: Self::LEAF,
+//         }
+//     }
+// }
+
+// impl<const B: usize, const L: usize> Default for MicroEquation<B, L> {
+//     fn default() -> Self {
+//         Self::new()
+//     }
+// }
+
+
+
 pub struct MathParser {
     pub(crate) focus_of_eq: Axis,
     pub(crate) equals_pos: usize,
@@ -103,9 +220,15 @@ pub struct MathParser {
 }
 impl MathParser {
     pub fn new(input: &str) -> Self {
+        
+        let eq_index = if let Some(i) = input.find('=') {
+            if i > 0 && i < input.len() { i
+            } else { 0 }
+        } else { 0 };
+
         let mut parser = MathParser {
             focus_of_eq: Axis::NoFocus,
-            equals_pos: 0, //  NOTE:  zero is an invalid position for the = sign to reside so it has no effect if placed here
+            equals_pos: eq_index,
             current: 0,
             cached_ans: None,
             parens:  heapless::Vec::new(),
