@@ -2,14 +2,14 @@ use std::cmp::min;
 use std::ops::{Add as _, Div as _, Mul as _, Sub as _};
 
 use crate::{MAX_EXPRESSION_LEN, MAX_PARENS};
-use crate::parsing::{Calc, MathParser, Token};
+use crate::parsing::{Calc, MathParser, Op};
 
 
 impl MathParser {
     /// If expression can't be solved example `2+=` then don't attempt to solve it 
     pub fn has_solve(&self) -> bool {
         match self.expressions.last() {
-            Some(Calc::Expr(Token::VarX | Token::VarY | Token::Variable | Token::Pi)) => true,
+            Some(Calc::Expr(Op::VarX | Op::VarY | Op::Variable | Op::Pi)) => true,
             Some(Calc::Expr(_)) => false,
             _ => true,
         }
@@ -82,21 +82,21 @@ fn calculate_range(range: &[Calc], n: f32) -> heapless::Vec<Calc, MAX_EXPRESSION
     let mut index = calcs.len();
     loop {
         match calcs.get(index) { 
-            Some(Calc::Expr(Token::Variable)) if index != 0 => calcs[index] = Calc::Num(n),
-            Some(Calc::Expr(Token::Sin))    => preform_soh_cah_toh(&mut calcs, index, |b| { b.sin() }, n),
-            Some(Calc::Expr(Token::ArcSin)) => preform_soh_cah_toh(&mut calcs, index, |b| { b.asin() }, n),
-            Some(Calc::Expr(Token::Cos))    => preform_soh_cah_toh(&mut calcs, index, |b| { b.cos() }, n),
-            Some(Calc::Expr(Token::ArcCos)) => preform_soh_cah_toh(&mut calcs, index, |b| { b.acos() }, n),
-            Some(Calc::Expr(Token::Tan))    => preform_soh_cah_toh(&mut calcs, index, |b| { b.tan() }, n),
-            Some(Calc::Expr(Token::ArcTan)) => preform_soh_cah_toh(&mut calcs, index, |b| { b.atan() }, n),
-            Some(Calc::Expr(Token::Sqrt))   => preform_soh_cah_toh(&mut calcs, index, |b| { b.sqrt() }, n),
+            Some(Calc::Expr(Op::Variable)) if index != 0 => calcs[index] = Calc::Num(n),
+            Some(Calc::Expr(Op::Sin))    => preform_soh_cah_toh(&mut calcs, index, |b| { b.sin() }, n),
+            Some(Calc::Expr(Op::ArcSin)) => preform_soh_cah_toh(&mut calcs, index, |b| { b.asin() }, n),
+            Some(Calc::Expr(Op::Cos))    => preform_soh_cah_toh(&mut calcs, index, |b| { b.cos() }, n),
+            Some(Calc::Expr(Op::ArcCos)) => preform_soh_cah_toh(&mut calcs, index, |b| { b.acos() }, n),
+            Some(Calc::Expr(Op::Tan))    => preform_soh_cah_toh(&mut calcs, index, |b| { b.tan() }, n),
+            Some(Calc::Expr(Op::ArcTan)) => preform_soh_cah_toh(&mut calcs, index, |b| { b.atan() }, n),
+            Some(Calc::Expr(Op::Sqrt))   => preform_soh_cah_toh(&mut calcs, index, |b| { b.sqrt() }, n),
             _ => {}
         }
         if index == 0 { break; } else { index -= 1; }
     }
     let mut index = calcs.len();
     loop { // Exponents evaluate Right to Left
-        if matches!(calcs.get(index), Some(Calc::Expr(Token::Exp))) { 
+        if matches!(calcs.get(index), Some(Calc::Expr(Op::Exp))) { 
             preform_maths(&mut calcs, index, |a, b| { a.powf(b) }, n)
         }
         if index == 0 { break; } else { index -= 1; }
@@ -105,9 +105,9 @@ fn calculate_range(range: &[Calc], n: f32) -> heapless::Vec<Calc, MAX_EXPRESSION
     loop {
         if index == calcs.len() { break; }
         match calcs.get(index) { 
-            Some(Calc::Expr(Token::Mul)) => preform_maths(&mut calcs, index, |a, b| { a.mul(b) }, n),
-            Some(Calc::Expr(Token::Div)) => preform_maths(&mut calcs, index, |a, b| { a.div(b) }, n),
-            Some(Calc::Expr(Token::Mod)) => preform_maths(&mut calcs, index, |a, b| { a % b }, n),
+            Some(Calc::Expr(Op::Mul)) => preform_maths(&mut calcs, index, |a, b| { a.mul(b) }, n),
+            Some(Calc::Expr(Op::Div)) => preform_maths(&mut calcs, index, |a, b| { a.div(b) }, n),
+            Some(Calc::Expr(Op::Mod)) => preform_maths(&mut calcs, index, |a, b| { a % b }, n),
             _ => { index += 1; }
         }
     }
@@ -115,8 +115,8 @@ fn calculate_range(range: &[Calc], n: f32) -> heapless::Vec<Calc, MAX_EXPRESSION
     loop {
         if index == calcs.len() { break; }
         match calcs.get(index) { 
-            Some(Calc::Expr(Token::Add)) => preform_maths(&mut calcs, index, |a, b| { a.add(b) }, n),
-            Some(Calc::Expr(Token::Sub)) => preform_maths(&mut calcs, index, |a, b| { a.sub(b) }, n),
+            Some(Calc::Expr(Op::Add)) => preform_maths(&mut calcs, index, |a, b| { a.add(b) }, n),
+            Some(Calc::Expr(Op::Sub)) => preform_maths(&mut calcs, index, |a, b| { a.sub(b) }, n),
             _ => { index += 1; }
         }
     }
@@ -143,5 +143,5 @@ fn preform_maths<F>(calcs: &mut heapless::Vec<Calc, 20>, index: usize, math: F, 
 }
 
 fn var_to_num (v: Calc, n: f32) -> Calc {
-    if v == Calc::Expr(Token::Variable) {Calc::Num(n)} else {v}
+    if v == Calc::Expr(Op::Variable) {Calc::Num(n)} else {v}
 }

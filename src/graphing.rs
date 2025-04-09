@@ -1,11 +1,11 @@
-use crate::{parsing::{Calc, MathParser, Token}, MAX_EXPRESSION_LEN};
+use crate::{parsing::{Calc, MathParser, Op}, MAX_EXPRESSION_LEN};
 
 
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub enum Axis { GraphX, GraphY, NoFocus }
 impl Axis {
     pub fn matches_calc(&self, token: &Calc) -> bool {
-        matches!((self, token), (Axis::GraphX, Calc::Expr(Token::VarX))|(Axis::GraphY, Calc::Expr(Token::VarY)))
+        matches!((self, token), (Axis::GraphX, Calc::Expr(Op::VarX))|(Axis::GraphY, Calc::Expr(Op::VarY)))
     }
 }
 

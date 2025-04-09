@@ -14,3 +14,11 @@ path = "src/lib.rs"
 heapless = "0.8.0"
 # core ="*"
 # alloc = "*"
+
+[profile.dev]
+overflow-checks = true
+opt-level = 1
+debug = true
+
+[profile.dev.package."*"]
+sanitize = ["address"]
