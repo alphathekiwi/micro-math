@@ -1,0 +1,16 @@
+[package]
+name = "micro-math"
+version = "0.1.0"
+edition = "2024"
+authors = ["Aaron Saunders <aaron@saundersdevelopment.org>"]
+
+[lib]
+no_std = true
+no_main = true
+name = "micro_math"
+path = "src/lib.rs"
+
+[dependencies]
+heapless = "0.8.0"
+# core ="*"
+# alloc = "*"
