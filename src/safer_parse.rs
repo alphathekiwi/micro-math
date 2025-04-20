@@ -2,84 +2,99 @@ use crate::equation::MathParser;
 use crate::{AbstractSnytaxTree, Equation, MicroVal, Op, Token};
 use crate::{FLOAT_FLAG, MOVABLE, NESTED_FLAG, VAR_FLAG};
 
-fn leaf_to_contained<'a>(leaf: usize, flag: u8) -> MicroVal<'a, UnsafeAst> {
-    if (flag & FLOAT_FLAG) == FLOAT_FLAG {
-        MicroVal::Float(f32::from_bits(leaf as u32))
-    } else if (flag & VAR_FLAG) == VAR_FLAG {
-        MicroVal::Var(leaf as u32)
-    } else if (flag & NESTED_FLAG) == NESTED_FLAG && leaf != 0 {
-        println!("Leaf: {} Flag: {:x}", leaf, flag);
-        let ptr: *const UnsafeAst = leaf as *const UnsafeAst;
-        let reference: &UnsafeAst = unsafe { &*ptr };
-        MicroVal::Nested(reference)
-    } else {
-        MicroVal::Unitialized
-    }
-}
-
-#[derive(Debug, PartialEq, Copy, Clone, Default)]
-pub struct UnsafeAst {
-    left: usize,
-    right: usize,
+#[derive(Debug, PartialEq, Copy, Clone)]
+pub struct SaferAst<'a> {
+    left: MicroVal<'a, SaferAst<'a>>,
+    right: MicroVal<'a, SaferAst<'a>>,
     left_flags: u8,
     right_flags: u8,
     op: Op,
 }
-impl AbstractSnytaxTree for UnsafeAst {
-    type A = usize;
+impl Default for SaferAst<'_> {
+    fn default() -> Self {
+        SaferAst {
+            left: MicroVal::Unitialized,
+            right: MicroVal::Unitialized,
+            op: Op::NotOp,
+            left_flags: 0,
+            right_flags: 0,
+        }
+    }
+}
+
+impl<'a> AbstractSnytaxTree for SaferAst<'a> {
+    type A = SaferAst<'a>;
     fn with_op(op: Op) -> Self {
         Self {
             op,
             ..Default::default()
         }
     }
+
     fn solve(&self, vars: &[f32]) -> f32 {
-        let left = leaf_to_contained(self.left, self.left_flags).solve(vars);
-        let right = leaf_to_contained(self.right, self.right_flags).solve(vars);
-        crate::calculation::calculate(left, right, self.op)
+        let (left, right, op) = self.get_values();
+        crate::calculation::calculate(left.solve(vars), right.solve(vars), op)
     }
 
-    fn set_left(&mut self, left: &Token<usize>) {
-        match left {
-            Token::Pi => self.set_left_as_float(core::f32::consts::PI),
-            Token::Number(n) => self.set_left_as_float(*n),
-            Token::Variable(v) => self.set_left_as_var(*v as u8),
-            Token::AstPointer(p) => {
-                let ptr: *const UnsafeAst = *p as *const UnsafeAst;
-                let left: &UnsafeAst = unsafe { &*ptr };
+    fn set_left(&mut self, val: &Token<SaferAst>) {
+        match val {
+            Token::Pi => {
+                self.left_flags = FLOAT_FLAG;
+                self.left = MicroVal::Float(core::f32::consts::PI);
+            }
+            Token::Number(n) => {
+                self.left_flags = FLOAT_FLAG;
+                self.left = MicroVal::Float(*n);
+            }
+            Token::Variable(v) => {
+                self.left_flags = VAR_FLAG;
+                self.left = MicroVal::Var(*v);
+            }
+            Token::AstPointer(left) => {
+                let ptr: *const SaferAst = left as *const SaferAst;
+                let left: SaferAst = unsafe { *ptr };
+                let left: &'a SaferAst = &left as &'a SaferAst;
                 if left.is_all_movable() {
                     self.left_flags = NESTED_FLAG | MOVABLE;
                 } else {
                     self.left_flags = NESTED_FLAG;
                 }
-                self.left = *p;
+                self.left = MicroVal::Nested(left);
             }
             _ => {}
         }
     }
-    fn set_right(&mut self, right: &Token<usize>) {
-        match right {
-            Token::Pi => self.set_right_as_float(core::f32::consts::PI),
-            Token::Number(n) => self.set_right_as_float(*n),
-            Token::Variable(v) => self.set_right_as_var(*v as u8),
+
+    fn set_right(&mut self, val: &Token<SaferAst>) {
+        match val {
+            Token::Pi => {
+                self.right_flags = FLOAT_FLAG;
+                self.right = MicroVal::Float(core::f32::consts::PI);
+            }
+            Token::Number(n) => {
+                self.right_flags = FLOAT_FLAG;
+                self.right = MicroVal::Float(*n);
+            }
+            Token::Variable(v) => {
+                self.right_flags = VAR_FLAG;
+                self.right = MicroVal::Var(*v);
+            }
             Token::AstPointer(p) => {
-                let ptr: *const UnsafeAst = *p as *const UnsafeAst;
-                let right: &UnsafeAst = unsafe { &*ptr };
+                let ptr: *const SaferAst = *p as *const SaferAst;
+                let right: &'static SaferAst = unsafe { &*ptr };
                 if right.is_all_movable() {
                     self.right_flags = NESTED_FLAG | MOVABLE;
                 } else {
                     self.right_flags = NESTED_FLAG;
                 }
-                self.right = *p;
+                self.right = MicroVal::Nested(right);
             }
             _ => {}
         }
     }
 
     fn get_values(&self) -> (MicroVal<Self>, MicroVal<Self>, Op) {
-        let left = leaf_to_contained(self.left, self.left_flags);
-        let right = leaf_to_contained(self.right, self.right_flags);
-        (left, right, self.op)
+        (self.left, self.right, self.op)
     }
 
     fn set_operation(&mut self, op: Op) {
@@ -93,65 +108,17 @@ impl AbstractSnytaxTree for UnsafeAst {
     fn left_flags(&self) -> u8 {
         self.left_flags
     }
-
     fn right_flags(&self) -> u8 {
         self.right_flags
     }
 }
-impl UnsafeAst {
-    #[allow(unused)]
-    fn new() -> Self {
-        UnsafeAst {
-            left: 0,
-            right: 0,
-            op: Op::NotOp,
-            left_flags: 0,
-            right_flags: 0,
-        }
-    }
-
-    fn set_left_as_nested(&mut self, left: &UnsafeAst) {
-        if left.is_all_movable() {
-            self.left_flags = NESTED_FLAG | MOVABLE;
-        } else {
-            self.left_flags = NESTED_FLAG;
-        }
-        self.left = left as *const UnsafeAst as usize;
-    }
-    fn set_left_as_float(&mut self, left: f32) {
-        self.left_flags = FLOAT_FLAG;
-        self.left = f32::to_bits(left) as usize;
-    }
-    fn set_left_as_var(&mut self, left: u8) {
-        self.left_flags = VAR_FLAG;
-        self.left = left as usize;
-    }
-    fn set_right_as_nested(&mut self, right: &UnsafeAst) {
-        if right.is_all_movable() {
-            self.right_flags = NESTED_FLAG | MOVABLE;
-        } else {
-            self.right_flags = NESTED_FLAG;
-        }
-        self.right = right as *const UnsafeAst as usize;
-    }
-    fn set_right_as_float(&mut self, right: f32) {
-        self.right_flags = FLOAT_FLAG;
-        // println!("float: {} usize: {}", right, right as usize);
-        self.right = f32::to_bits(right) as usize;
-    }
-    fn set_right_as_var(&mut self, right: u8) {
-        self.right_flags = VAR_FLAG;
-        self.right = right as usize;
-    }
-}
-
 
 
 macro_rules! tokens_to_ast {
     ($parser:tt, $tokens:tt, $index:tt, $end:tt, $fallthrough:tt, $op:ident) => {
         if matches!($tokens.get($index), Some(Token::Operation(Op::$op))) {
             // println!("Matched a {:?} {:?} {:?}", &$tokens.get($index-1), Op::$op, &$tokens.get($index+1));
-            let mut exp = UnsafeAst::with_op(Op::$op);
+            let mut exp = SaferAst::with_op(Op::$op);
             exp.set_right(&$tokens.remove($index+1));
             exp.set_left(&$tokens.remove($index-1));
             // println!("{:?}", exp);
@@ -168,7 +135,7 @@ macro_rules! tokens_to_ast {
             $(
                 Some(Token::Operation(Op::$op)) => {
                     // println!("Matched a {:?} {:?} {:?}", &$tokens.get($index-1), Op::$op, &$tokens.get($index+1));
-                    let mut exp = UnsafeAst::with_op(Op::$op);
+                    let mut exp = SaferAst::with_op(Op::$op);
                     exp.set_right(&$tokens.remove($index+1));
                     exp.set_left(&$tokens.remove($index-1));
                     // println!("{:?}", exp);
@@ -194,7 +161,7 @@ macro_rules! sctb_to_ast {
             },
             $((Some(Token::Operation(Op::$op)), Some(_), Some(Token::CloseParen(_))) => {
                 // println!("Matched a {:?} {:?}", Op::$op, &$tokens.get($index+1));
-                let mut exp = UnsafeAst::with_op(Op::$op);
+                let mut exp = SaferAst::with_op(Op::$op);
                 let _ = &$tokens.remove($index+2);
                 let mid = $tokens.remove($index+1);
                 exp.set_right(&mid);
@@ -210,11 +177,11 @@ macro_rules! sctb_to_ast {
     }
 }
 
-///  NOTE:  The main implementation for the unsafe parser
-impl<const N: usize> MathParser<UnsafeAst, N> {
+///  NOTE:  The main implementation for the safer parser
+impl<'a, const N: usize> MathParser<SaferAst<'a>, N> { 
     pub fn all_values_and_pointers(&self) {
         for i in 0..self.len() {
-            let ptr: *const UnsafeAst = self.equation[i].as_ptr();
+            let ptr: *const SaferAst = self.equation[i].as_ptr();
             println!("[{}]: {:?}", ptr as usize, self.get(i))
         }
     }
@@ -226,15 +193,17 @@ impl<const N: usize> MathParser<UnsafeAst, N> {
         if equals_pos > 0 && equals_pos < input.len() - 1 {
             let (left, right) = input.split_at(equals_pos);
             let left_ex = self.parse_expression_side(left);
+            let left_tk = Token::AstPointer(&left_ex as *const SaferAst<'static> as usize);
             let right_ex = self.parse_expression_side(right);
-            let mut root = UnsafeAst::default();
-            root.set_left_as_nested(&left_ex);
-            root.set_right_as_nested(&right_ex);
+            let right_tk = Token::AstPointer(&right_ex as *const SaferAst<'static> as usize);
+            let mut root = SaferAst::default();
+            root.set_left(&left_tk);
+            root.set_right(&right_tk);
             self.left_ptr_push(root);
         } else {
             if let Some(Some(op)) = input.chars().next().map(Op::recurs_on_ans) {
-                let mut exp = UnsafeAst::with_op(op);
-                exp.set_left_as_var(0);
+                let mut exp = SaferAst::with_op(op);
+                exp.set_left(&Token::Variable(0));
                 self.left_ptr_push(exp);
             }
             self.parse_expression_side(input);
@@ -242,9 +211,9 @@ impl<const N: usize> MathParser<UnsafeAst, N> {
     }
 
     /// If operating on a balanced equation like
-    fn parse_expression_side(&mut self, input: &str) -> UnsafeAst {
-        let mut tokens: heapless::Vec<Token<usize>, N> = heapless::Vec::new();
-        crate::str_parse::string_to_tokens::<usize, N>(&mut tokens, input);
+    fn parse_expression_side(&mut self, input: &str) -> SaferAst {
+        let mut tokens: heapless::Vec<Token<SaferAst>, N> = heapless::Vec::new();
+        crate::str_parse::string_to_tokens::<SaferAst, N>(&mut tokens, input);
         let end = tokens.len();
         println!("{:?} {}", tokens, end);
         for start in (0..end).rev() {
@@ -269,11 +238,11 @@ impl<const N: usize> MathParser<UnsafeAst, N> {
         }
         let end = tokens.len();
         self.section_to_ast(&mut tokens, 0, end);
-        UnsafeAst::default()
+        unsafe { *self.get_unchecked(self.l_len) }
     }
 
     /// Takes a mutable reference to a token vec with a start and end and attempts to pop elements from it and place them into a
-    fn section_to_ast(&mut self, tokens: &mut heapless::Vec<Token<usize>, N>, start: usize, end: usize) {
+    fn section_to_ast(&mut self, tokens: &mut heapless::Vec<Token<SaferAst>, N>, start: usize, end: usize) {
         // Exponents evaluate Right to Left
         let mut end = end;
         for index in (start..end).rev() {

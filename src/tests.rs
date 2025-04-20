@@ -1,7 +1,10 @@
 
 // use std::cmp::max;
 
-use crate::unsafe_parse::MathParser;
+use crate::unsafe_parse::UnsafeAst;
+use crate::equation::MathParser;
+use crate::Equation as _;
+
 const TEST_EQ_LEN: usize = 128;
 
 // const VARS: &str = "AXY";
@@ -46,7 +49,7 @@ const TEST_EQ_LEN: usize = 128;
 // }
 // impl 
 // MicroEquation {
-//     #[allow(unused)]
+//     
 //     pub fn render_tree(&self) -> Vec<String> {
 //         let mut display: Vec<String> = Vec::new();
 //         let (left, right, op) = self.get_values();
@@ -102,9 +105,10 @@ const TEST_EQ_LEN: usize = 128;
 //     }
 // }
 
-#[allow(unused)]
+
 fn test_graphing(input: &str) {
-    let parser: MathParser<TEST_EQ_LEN> = MathParser::new(input);
+    let mut parser: MathParser<UnsafeAst, TEST_EQ_LEN> = MathParser::new();
+    parser.parse_expression(input);
     for line in parser.render_tree() {
         println!("{}", line);
     }
@@ -143,15 +147,27 @@ fn unbalanced_equation() {
     test_graphing("x*5=y*y");
 }
 
-#[allow(unused)]
-fn test_calculation(input: &str, expected: f32, n: f32) {
-    let parser: MathParser<TEST_EQ_LEN> = MathParser::new(input);
-    for line in parser.render_tree() {
-        println!("{}", line);
+
+fn test_calculation(input: &str, _expected: f32, _var: f32) {
+    let mut parser: MathParser<UnsafeAst, TEST_EQ_LEN> = MathParser::new();
+    parser.parse_expression(input);
+    parser.all_values_and_pointers();
+    // let ans = parser
+    {
+        println!("-----------------------"); // passing a reference into a function is fine
+        let nested = |parser: &MathParser<UnsafeAst, 128>| {
+            parser.all_values_and_pointers();
+        };
+        nested(&parser);
     }
-    // println!("{:?}", parser.expressions);
-    // let ans = parser.calculate_result_inplace(n);
-    // assert_eq!(ans, expected, "Comparing {input} => {ans} != {expected}\n{:?}", parser.expressions);
+    println!("-----------------------"); // moving into a function will break raw pointers
+    let nested = || {
+        parser.all_values_and_pointers();
+        parser
+    };
+    let parser = nested();
+    println!("-----------------------"); // moving out of a function will break raw pointers
+    parser.all_values_and_pointers();
 }
 
 #[test]
