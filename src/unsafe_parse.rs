@@ -25,14 +25,16 @@ pub struct UnsafeAst {
     right_flags: u8,
     op: Op,
 }
-impl AbstractSnytaxTree for UnsafeAst {
-    type A = usize;
+impl UnsafeAst {
     fn with_op(op: Op) -> Self {
         Self {
             op,
             ..Default::default()
         }
     }
+}
+impl AbstractSnytaxTree for UnsafeAst {
+    type A = usize;
     fn solve(&self, vars: &[f32]) -> f32 {
         let left = leaf_to_contained(self.left, self.left_flags).solve(vars);
         let right = leaf_to_contained(self.right, self.right_flags).solve(vars);
@@ -248,15 +250,7 @@ impl<const N: usize> MathParser<UnsafeAst, N> {
         let end = tokens.len();
         println!("{:?} {}", tokens, end);
         for start in (0..end).rev() {
-            if matches!(
-                tokens.get(start),
-                Some(
-                    Token::OpenParen(_)
-                        | Token::Operation(Op::Sin | Op::ArcSin)
-                        | Token::Operation(Op::Cos | Op::ArcCos)
-                        | Token::Operation(Op::Tan | Op::ArcTan)
-                )
-            ) {
+            if tokens.get(start).map(Token::is_paren_start).unwrap_or_default() {
                 let tokens_len = tokens.len();
                 for end in start..tokens_len {
                     if matches!(tokens.get(end), Some(Token::CloseParen(_))) {

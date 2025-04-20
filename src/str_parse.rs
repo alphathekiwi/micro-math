@@ -6,11 +6,7 @@ pub fn string_to_tokens<T: Copy, const N: usize>(
 ) {
     let chars = input.chars();
     if let Some(b) = input.chars().next() {
-        if matches!(
-            Token::<T>::from(b),
-            Token::Operation(Op::Add | Op::Mul | Op::Div | Op::Exp | Op::Mod)
-        ) {
-            // Op::Sub avoided
+        if Token::<T>::from(b).is_doublesided_op() {
             // If equation begins with an operation push a previous answer variable in front of it
             expressions.push(Token::Variable(0)).ok();
         }
@@ -33,10 +29,9 @@ pub fn string_to_tokens<T: Copy, const N: usize>(
                 if let Some(remaining) = input.get(i..) {
                     current = i;
                     for c in remaining.chars() {
-                        if matches!(c, '0'..='9' | '.') {
-                            current += 1;
-                        } else {
-                            break;
+                        match c {
+                            '0'..='9'|'.' => current += 1,
+                            _ => break,
                         }
                     }
                 }
@@ -54,7 +49,7 @@ pub fn string_to_tokens<T: Copy, const N: usize>(
                         current = i + 4;
                         continue;
                     }
-                    (_, Some(s)) if s.chars().nth(0) == Some('(') => {
+                    (_, Some(s)) if s.starts_with('(') => {
                         expressions.push(token).ok();
                         current = i + 2;
                         continue;

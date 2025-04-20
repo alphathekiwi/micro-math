@@ -22,40 +22,43 @@ where
     }
 
     fn render_tree(&self) -> Vec<String> {
-        let mut display: Vec<String> = Vec::new();
-        let (left, right, op) = self.get_values();
-        let left = left.render_tree();
-        let right = right.render_tree();
-        let height = std::cmp::max(left.len(), right.len());
-        let (ol, or) = (height - left.len(), height - right.len());
-        for i in 0..height {
-            match (i >= ol, i >= or) {
-                (true, false) => {
-                    let val = format!("{}  ", left.get(i - ol).cloned().unwrap_or_default());
-                    let (pf, sf) = suffix_postfix(val.len() - 3);
-                    display.push(val);
-                    display.push(format!("{pf}\\{op} {sf}"));
-                }
-                (false, true) => {
-                    let val = format!("  {}", right.get(i - or).cloned().unwrap_or_default());
-                    let (pf, sf) = suffix_postfix(val.len() - 3);
-                    display.push(val);
-                    display.push(format!("{pf} {op}/{sf}"));
-                }
-                _ => {
-                    let val = format!(
-                        "{} {}",
-                        left.get(i - ol).cloned().unwrap_or_default(),
-                        right.get(i - or).cloned().unwrap_or_default()
-                    );
-                    let (pf, sf) = suffix_postfix(val.len() - 3);
-                    display.push(val);
-                    display.push(format!("{pf}\\{op}/{sf}"));
-                }
+        ast_render_tree(self)
+    }
+}
+pub(crate) fn ast_render_tree<T>(ast: &T) -> Vec<String> where T: AbstractSnytaxTree, T: Equation {
+    let mut display: Vec<String> = Vec::new();
+    let (left, right, op) = ast.get_values();
+    let left = left.render_tree();
+    let right = right.render_tree();
+    let height = std::cmp::max(left.len(), right.len());
+    let (ol, or) = (height - left.len(), height - right.len());
+    for i in 0..height {
+        match (i >= ol, i >= or) {
+            (true, false) => {
+                let val = format!("{}  ", left.get(i - ol).cloned().unwrap_or_default());
+                let (pf, sf) = suffix_postfix(val.len() - 3);
+                display.push(val);
+                display.push(format!("{pf}\\{op} {sf}"));
+            }
+            (false, true) => {
+                let val = format!("  {}", right.get(i - or).cloned().unwrap_or_default());
+                let (pf, sf) = suffix_postfix(val.len() - 3);
+                display.push(val);
+                display.push(format!("{pf} {op}/{sf}"));
+            }
+            _ => {
+                let val = format!(
+                    "{} {}",
+                    left.get(i - ol).cloned().unwrap_or_default(),
+                    right.get(i - or).cloned().unwrap_or_default()
+                );
+                let (pf, sf) = suffix_postfix(val.len() - 3);
+                display.push(val);
+                display.push(format!("{pf}\\{op}/{sf}"));
             }
         }
-        display
     }
+    display
 }
 impl<T: AbstractSnytaxTree, const N: usize> Equation for MathParser<T, N> where T::A: std::fmt::Display {
     fn solve(&self, vars: &[f32]) -> f32 {

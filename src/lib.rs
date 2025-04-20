@@ -1,6 +1,6 @@
 pub mod equation;
-pub mod safer_parse;
 pub mod str_parse;
+// pub mod safer_parse;
 pub mod unsafe_parse;
 
 #[cfg(test)]
@@ -13,12 +13,12 @@ pub trait Equation {
     fn solve(&self, vars: &[f32]) -> f32;
     fn render_tree(&self) -> Vec<String>;
 }
-pub trait AbstractSnytaxTree 
+pub trait AbstractSnytaxTree
 where
-Self: Sized,
+    Self: Sized,
 {
     type A;
-    fn with_op(op: Op) -> Self;
+    // fn with_op(op: Op) -> Self;
     fn solve(&self, vars: &[f32]) -> f32;
 
     // SETTERS
@@ -112,13 +112,25 @@ pub enum Token<T> {
 }
 impl<T> Token<T> {
     const fn is_narrow(&self) -> bool {
-        match self {
+        matches!( // fn is_narrow
+            self,
             Token::Operation(
                 Op::Add | Op::Sub | Op::Mul | Op::Div | Op::Mod | Op::Exp | Op::Sqrt | Op::Fac,
-            )
-            | Token::Equals => true,
-            _ => false,
-        }
+            ) | Token::Equals
+        )
+    }
+    const fn is_doublesided_op(&self) -> bool {
+        matches!( // fn is_doublesided_op
+            self,
+            Token::Operation(Op::Add | Op::Mul | Op::Div | Op::Exp | Op::Mod | Op::Sub)
+        )
+    }
+    const fn is_paren_start(&self) -> bool {
+        matches!( // fn is_paren_start
+            self,
+            Token::Operation(Op::Sin | Op::ArcSin | Op::Cos | Op::ArcCos | Op::Tan | Op::ArcTan)
+                | Token::OpenParen(_)
+        )
     }
 }
 
@@ -255,6 +267,14 @@ impl std::fmt::Display for Op {
 const VARS: &str = "AXY";
 impl<T: Equation> Equation for MicroVal<'_, T> {
     fn solve(&self, vars: &[f32]) -> f32 {
+        self.base_solve(vars)
+    }
+    fn render_tree(&self) -> Vec<String> {
+        self.base_tree_render()
+    }
+}
+impl<'a, T: Equation> MicroVal<'a, T> {
+    pub(crate) fn base_solve(&self, vars: &[f32]) -> f32 {
         match self {
             MicroVal::Float(f) => *f,
             MicroVal::Var(v) => vars.get(*v as usize).copied().unwrap_or(0.0),
@@ -262,7 +282,7 @@ impl<T: Equation> Equation for MicroVal<'_, T> {
             MicroVal::Unitialized => 0.0,
         }
     }
-    fn render_tree(&self) -> Vec<String> {
+    pub(crate) fn base_tree_render(&self) -> Vec<String> {
         let mut display: Vec<String> = Vec::new();
         match self {
             MicroVal::Float(n) => display.push(format!("{n}")),
